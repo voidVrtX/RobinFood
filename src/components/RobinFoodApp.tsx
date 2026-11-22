@@ -175,6 +175,7 @@ export function RobinFoodApp() {
   const [publishPoint, setPublishPoint] = useState<(typeof possibleSurplusLocations)[number] | null>(null);
   const [publishPhoto, setPublishPhoto] = useState(isDemoMode ? imageFallback : '');
   const [publishPhotos, setPublishPhotos] = useState<string[]>([]);
+  const [publishDriveUrl, setPublishDriveUrl] = useState('');
   const [publishDuration, setPublishDuration] = useState<'15m' | '30m' | '1h' | '3h' | 'custom' | 'manual'>('3h');
   const [customDurationMinutes, setCustomDurationMinutes] = useState('60');
   const [deliveryCode, setDeliveryCode] = useState('');
@@ -380,6 +381,7 @@ export function RobinFoodApp() {
       setPublishTitle('');
       setPublishPhotos([]);
       setPublishPhoto(isDemoMode ? imageFallback : '');
+      setPublishDriveUrl('');
       setPublishPoint(null);
       setPublishAddress(TOLUCA.address);
       published = true;
@@ -647,7 +649,19 @@ export function RobinFoodApp() {
     {publishPhoto
       ? <Image source={{ uri: publishPhoto }} style={styles.publishImage} />
       : <View style={[styles.publishImage, styles.imageFallback]}><Text style={styles.robin}>🐦</Text><Text>Selecciona una foto para tu publicación</Text></View>}
-    <Text style={styles.muted}>Máximo 4 fotos, 5 MB cada una.</Text>
+    <Label>Enlace público de Google Drive</Label>
+    <TextField
+      autoCapitalize="none"
+      placeholder="https://drive.google.com/file/d/..."
+      value={publishDriveUrl}
+      onChangeText={(value) => {
+        setPublishDriveUrl(value);
+        setPublishPhoto(value);
+        setPublishPhotos(value.trim() ? [value.trim()] : []);
+      }}
+    />
+    <Button secondary label="Abrir carpeta de fotos en Drive" onPress={() => void Linking.openURL('https://drive.google.com/drive/folders/1KfdGtxix6gpkZTN0jKhBIASgrdEo4IZ7?usp=sharing').catch(() => setError('No se pudo abrir Google Drive.'))} />
+    <Text style={styles.muted}>Sube la foto a Google Drive, abre “Compartir” y activa “Cualquier persona con el enlace” como lector. Pegando el enlace no se requiere Firebase Storage.</Text>
     <Label>Nombre del alimento</Label><TextField placeholder="Ej. Manzanas rojas" value={publishTitle} onChangeText={setPublishTitle} maxLength={60} />
     <Label>Categoría</Label><View style={styles.row}>{(['frutas', 'verduras', 'pan', 'otros'] as const).map((value) => <Button key={value} secondary label={publishCategory === value ? `✓ ${categoryLabels[value]}` : categoryLabels[value]} onPress={() => setPublishCategory(value)} />)}</View>
     <Label>Cantidad y unidad</Label><View style={styles.row}><TextField keyboardType="decimal-pad" value={publishQuantity} onChangeText={setPublishQuantity} style={styles.flexInput} />{(['kg', 'piezas', 'porciones', 'litros', 'cajas'] as const).map((unit) => <Pressable key={unit} onPress={() => setPublishUnit(unit)} style={[styles.filterChip, publishUnit === unit && styles.filterChipActive]}><Text>{unit}</Text></Pressable>)}</View>

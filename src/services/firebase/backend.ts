@@ -269,6 +269,22 @@ async function uploadPhoto(uri: string, index: number, uid: string): Promise<str
   return path;
 }
 
+export function normalizeGoogleDriveImageUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  let id = '';
+  try {
+    const url = new URL(trimmed);
+    const fileMatch = url.pathname.match(/\/d\/([A-Za-z0-9_-]+)/);
+    if (fileMatch) id = fileMatch[1];
+    else if (url.searchParams.has('id')) id = url.searchParams.get('id')?.trim() ?? '';
+  } catch {
+    return null;
+  }
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(id)) return null;
+  return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w1200`;
+}
+
 export async function publishDonation(input: NewDonationInput): Promise<Donation> {
   const user = currentUser();
   if (!input.title.trim() || input.quantity <= 0) throw new Error('Completa el nombre y la cantidad.');
@@ -278,8 +294,14 @@ export async function publishDonation(input: NewDonationInput): Promise<Donation
   const donationRef = doc(collection(getFirebaseClient().db, 'donations'));
   const photos: string[] = [];
   for (let index = 0; index < input.photos.length; index++) {
-    if (!input.photos[index] || /^https?:\/\//i.test(input.photos[index])) continue;
-    photos.push(await uploadPhoto(input.photos[index], index, user.uid));
+    const driveUrl = normalizeGoogleDriveImageUrl(input.photos[index]);
+    if (driveUrl) {
+      photos.push(driveUrl);
+    } else if (/^https?:\/\//i.test(input.photos[index])) {
+      throw new Error('Usa un enlace público de Google Drive o selecciona una foto del dispositivo.');
+    } else {
+      photos.push(await uploadPhoto(input.photos[index], index, user.uid));
+    }
   }
   const donation: Donation = {
     id: donationRef.id,
@@ -421,7 +443,11 @@ export async function exportCsv(kind: 'users' | 'donations' | 'reservations'): P
 }
 
 export async function resolvePhoto(path: string): Promise<string> {
-  if (/^https?:\/\//i.test(path)) throw new Error('Las fotos externas no están habilitadas para publicaciones reales.');
+  if (/^https?:\/\//i.test(path)) {
+    const driveUrl = normalizeGoogleDriveImageUrl(path);
+    if (driveUrl) return driveUrl;
+    throw new Error('La foto no es un enlace público válido de Google Drive.');
+  }
   return getDownloadURL(ref(getFirebaseClient().storage, path));
 }
 

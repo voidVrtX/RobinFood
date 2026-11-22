@@ -42,7 +42,7 @@ El esquema y los permisos están descritos en [docs/MIGRACION_BACKEND.md](./docs
 - Solicitudes de acceso sin registro público; creación de cuentas receptoras/donadoras solo por administración.
 - Donaciones, reservas, mensajes, avisos internos, solicitudes y auditoría en colecciones separadas de Firestore.
 - Reservas, cancelaciones y entregas verificadas en transacciones server-side; reglas por identidad, rol y participante.
-- Fotos reales subidas a Storage bajo rutas controladas; el modo demo conserva imágenes y datos ficticios locales.
+- Las fotos reales pueden usar enlaces públicos de Google Drive sin activar Firebase Storage; la opción histórica de Storage queda disponible para un despliegue con facturación. El modo demo conserva imágenes locales.
 - Puntos sugeridos de Toluca seleccionables al publicar una donación y visibles en el mapa junto con las publicaciones y posibles receptores. Son datos informativos: confirma horarios y excedentes; no son socios verificados ni datos sembrados en backend.
 - Las notificaciones push no están implementadas. Solo existen avisos dentro de la app sincronizados por Firestore.
 - Mapa OSM, filtros, navegación por rol, soporte, reportes, CSV e interfaz responsiva.
