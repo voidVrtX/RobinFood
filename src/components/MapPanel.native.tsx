@@ -1,11 +1,11 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 import type { Donation, MapLocation } from '@/types/models';
 import { TOLUCA, palette } from '@/theme/palette';
 import { potentialRecipients, possibleSurplusLocations } from '@/data/tolucaRoutes';
 
-export default function MapPanel({ donations = [], locations = [] }: { donations?: Donation[]; locations?: MapLocation[] }) {
+export default function MapPanel({ donations = [], locations = [], selectedDonation = null, receptorLocation = null }: { donations?: Donation[]; locations?: MapLocation[]; selectedDonation?: Donation | null; receptorLocation?: { lat: number; lng: number } | null }) {
   return (
     <View style={styles.container}>
       <View style={styles.frame}>
@@ -23,6 +23,22 @@ export default function MapPanel({ donations = [], locations = [] }: { donations
           {donations.map((donation) => (
             <Marker key={`donation-${donation.id}`} coordinate={{ latitude: donation.lat, longitude: donation.lng }} title={donation.title} description={`Publicación · ${donation.address}`} pinColor="#B6291F" />
           ))}
+          {receptorLocation ? (
+            <Marker coordinate={{ latitude: receptorLocation.lat, longitude: receptorLocation.lng }} title="Tu ubicación" pinColor="#EC6FA8" />
+          ) : null}
+          {selectedDonation ? (
+            <Marker coordinate={{ latitude: selectedDonation.lat, longitude: selectedDonation.lng }} title="Ubicación exacta del donador" description={selectedDonation.address} pinColor="#2563EB" />
+          ) : null}
+          {selectedDonation && receptorLocation ? (
+            <Polyline
+              coordinates={[
+                { latitude: receptorLocation.lat, longitude: receptorLocation.lng },
+                { latitude: selectedDonation.lat, longitude: selectedDonation.lng },
+              ]}
+              strokeColor="#2563EB"
+              strokeWidth={5}
+            />
+          ) : null}
         </MapView>
       </View>
       <View style={styles.legend}>

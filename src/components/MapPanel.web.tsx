@@ -6,7 +6,7 @@ import type { Donation, MapLocation } from '@/types/models';
 import { TOLUCA, palette } from '@/theme/palette';
 import { potentialRecipients, possibleSurplusLocations } from '@/data/tolucaRoutes';
 
-export default function MapPanel({ donations = [], locations = [] }: { donations?: Donation[]; locations?: MapLocation[] }) {
+export default function MapPanel({ donations = [], locations = [], selectedDonation = null, receptorLocation = null }: { donations?: Donation[]; locations?: MapLocation[]; selectedDonation?: Donation | null; receptorLocation?: { lat: number; lng: number } | null }) {
   const mapElement = useRef<HTMLDivElement>(null);
   const [mapError, setMapError] = useState('');
 
@@ -62,6 +62,18 @@ export default function MapPanel({ donations = [], locations = [] }: { donations
       donations.forEach((donation) => {
         addMarker(donation.lat, donation.lng, '#B6291F', donation.title, `Publicación · ${donation.address}`);
       });
+      if (receptorLocation) {
+        addMarker(receptorLocation.lat, receptorLocation.lng, '#EC6FA8', 'Tu ubicación', 'Ubicación de tu cuenta');
+      }
+      if (selectedDonation) {
+        addMarker(selectedDonation.lat, selectedDonation.lng, '#2563EB', 'Ubicación exacta del donador', selectedDonation.address);
+        if (receptorLocation) {
+          L.polyline([
+            [receptorLocation.lat, receptorLocation.lng],
+            [selectedDonation.lat, selectedDonation.lng],
+          ], { color: '#2563EB', weight: 5, opacity: 0.75, dashArray: '10 8' }).addTo(map);
+        }
+      }
 
       if (coordinates.length > 1) map.fitBounds(coordinates, { padding: [24, 24], maxZoom: 14 });
       else if (coordinates.length === 1) map.setView(coordinates[0], 14);
@@ -75,7 +87,7 @@ export default function MapPanel({ donations = [], locations = [] }: { donations
       disposed = true;
       map?.remove();
     };
-  }, [donations, locations]);
+  }, [donations, locations, selectedDonation, receptorLocation]);
 
   return (
     <View style={styles.container}>

@@ -56,7 +56,11 @@ service firebase.storage {
           || donation().donorId == request.auth.uid
           || donation().status == 'disponible'
           || isParticipant());
-      allow write: if false;
+      allow create, update: if activeDonor()
+        && validImage()
+        && fileName.matches('[A-Za-z0-9._-]+');
+      allow delete: if activeDonor()
+        || isAdmin();
     }
 
     match /{path=**} {

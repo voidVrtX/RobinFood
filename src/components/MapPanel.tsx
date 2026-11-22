@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { palette, TOLUCA } from '@/theme/palette';
 import type { Donation, MapLocation } from '@/types/models';
 
-export default function MapPanel({ donations = [], locations = [] }: { donations?: Donation[]; locations?: MapLocation[] }) {
+export default function MapPanel({ donations = [], locations = [], selectedDonation = null, receptorLocation = null }: { donations?: Donation[]; locations?: MapLocation[]; selectedDonation?: Donation | null; receptorLocation?: { lat: number; lng: number } | null }) {
   return <View style={styles.map}><Text style={styles.pin}>📍</Text><Text style={styles.label}>Donaciones cerca de ti · {donations.length} publicaciones · {locations.length} ubicaciones compartidas · {TOLUCA.address}</Text></View>;
 }
 

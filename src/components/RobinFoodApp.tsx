@@ -159,6 +159,9 @@ export function RobinFoodApp() {
   const dark = storeUser?.prefs.darkMode === 'dark';
   const [showDemo, setShowDemo] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [initialTermsPending, setInitialTermsPending] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [accessModal, setAccessModal] = useState(false);
   const [termsOnLogin, setTermsOnLogin] = useState(false);
   const [requestType, setRequestType] = useState<'alta' | 'reset_password'>('alta');
   const [requestName, setRequestName] = useState('');
@@ -216,6 +219,13 @@ export function RobinFoodApp() {
   }, [allDonations, category, currentUser, search, sort]);
 
   useEffect(() => { void hydrate(); }, [hydrate]);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    if (window.localStorage.getItem('robinfood:termsAccepted:v1') !== 'true') {
+      setInitialTermsPending(true);
+      setAccepted(false);
+    }
+  }, []);
   useEffect(() => {
     if (ready && storeUser) {
       const timer = setTimeout(() => {
@@ -341,10 +351,6 @@ export function RobinFoodApp() {
   };
   const doPublish = async () => {
     if (!currentUser) return;
-    if (!isDemoMode && publishPhotos.length === 0) {
-      setError('Selecciona al menos una foto real del dispositivo para publicar.');
-      return;
-    }
     const durations: Record<Exclude<typeof publishDuration, 'custom' | 'manual'>, number> = {
       '15m': 15, '30m': 30, '1h': 60, '3h': 180,
     };
@@ -484,8 +490,18 @@ export function RobinFoodApp() {
       <Button label={requestType === 'reset_password' ? 'Enviar enlace de recuperación' : 'Enviar solicitud'} onPress={() => void run(async () => {
         if (requestType === 'reset_password' && !isDemoMode) {
           await requestPasswordReset(email);
+        } else if (requestType === 'alta') {
+          const subject = encodeURIComponent(`Solicitud para ser ${requestRole === 'donador' ? 'donador' : 'receptor'} - ${requestName || email}`);
+          const body = encodeURIComponent(`Hola Robin Food,\n\nQuiero solicitar acceso como ${requestRole === 'donador' ? 'donador' : 'receptor'}.\n\nNombre: ${requestName || 'No especificado'}\nCorreo: ${email}\n\nMotivo:\n${requestRequestMessage(requestMessage)}\n\nSaludos.`);
+          if (Platform.OS === 'web' && typeof window !== 'undefined') {
+            window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=erik.osbaldovm@gmail.com&su=${subject}&body=${body}`, '_blank', 'noopener,noreferrer');
+          } else {
+            await Linking.openURL(`mailto:erik.osbaldovm@gmail.com?subject=${subject}&body=${body}`);
+          }
+          await requestAccess({ type: 'alta', name: requestName || email, email, desiredRole: requestRole, message: requestRequestMessage(requestMessage) });
+          setAccessModal(true);
         } else {
-          await requestAccess({ type: requestType, name: requestName || 'Solicitud de restablecimiento', email, desiredRole: requestRole, message: requestMessage });
+          await requestAccess({ type: 'reset_password', name: requestName || 'Solicitud de restablecimiento', email, desiredRole: requestRole, message: requestMessage });
         }
         setPage('login');
       }, requestType === 'reset_password' && !isDemoMode
@@ -530,9 +546,11 @@ export function RobinFoodApp() {
   if (!currentUser) {
     return <ThemeContext.Provider value={dark}><LanguageContext.Provider value="es"><SafeAreaView style={[styles.safe, dark && styles.darkSafe]}><View style={[styles.authWrap, isDesktop && styles.authDesktop]}>
       <ScrollView contentContainerStyle={styles.authScroll} keyboardShouldPersistTaps="handled">
-        {page === 'welcome' ? renderWelcome() : page === 'access' || page === 'forgot' ? renderPublicRequest() : page === 'terms' ? renderTerms() : page === 'about' ? renderAbout() : renderLogin()}
+        {initialTermsPending
+          ? <View style={styles.panel}><Heading>Términos y condiciones</Heading><ScrollView style={styles.legalBox}>{LEGAL_SECTIONS.map(([title, body]) => <View key={title} style={styles.legalSection}><Text style={styles.strong}>{title}</Text><Text style={styles.body}>{body}</Text></View>)}</ScrollView><Pressable style={styles.row} onPress={() => setAccepted(!accepted)} accessibilityRole="checkbox" accessibilityState={{ checked: accepted }}><View style={styles.checkbox}>{accepted ? <Check size={16} color={palette.ink} /> : null}</View><Text style={styles.body}>He leído y acepto los Términos y el Aviso de Privacidad.</Text></Pressable><Button label="Aceptar" disabled={!accepted} onPress={() => { if (Platform.OS === 'web' && typeof window !== 'undefined') window.localStorage.setItem('robinfood:termsAccepted:v1', 'true'); setInitialTermsPending(false); setAccepted(false); }} /></View>
+          : page === 'welcome' ? renderWelcome() : page === 'access' || page === 'forgot' ? renderPublicRequest() : page === 'terms' ? renderTerms() : page === 'about' ? renderAbout() : renderLogin()}
       </ScrollView>
-    </View>{toast ? <Toast text={toast} /> : null}</SafeAreaView></LanguageContext.Provider></ThemeContext.Provider>;
+    </View>{toast ? <Toast text={toast} /> : null}{accessModal ? <AccessThanksModal onClose={() => setAccessModal(false)} /> : null}</SafeAreaView></LanguageContext.Provider></ThemeContext.Provider>;
   }
 
   const renderDonationCard = (donation: Donation) => {
@@ -588,7 +606,12 @@ export function RobinFoodApp() {
     }
     return <View style={styles.content}>
       <View style={styles.heroCard}><Text style={styles.eyebrow}>TOLUCA, ESTADO DE MÉXICO</Text><Heading>Alimentos cerca de ti</Heading><Text style={styles.body}>Comparte. Aprovecha. Reduce.</Text></View>
-      <MapPanel donations={filteredDonations} locations={mapLocations} />
+      <MapPanel
+        donations={filteredDonations}
+        locations={mapLocations}
+        selectedDonation={selectedDonation}
+        receptorLocation={currentUser.prefs.location && currentUser.lat != null && currentUser.lng != null ? { lat: currentUser.lat, lng: currentUser.lng } : null}
+      />
       {renderFilters()}
       <View style={styles.rowBetween}><Heading>Donaciones cerca de ti</Heading><Text style={styles.muted}>{filteredDonations.length} disponibles</Text></View>
       {filteredDonations.length ? <View style={styles.grid}>{filteredDonations.map(renderDonationCard)}</View> : <EmptyState text="No encontramos donaciones con esos filtros." action="Quitar filtros" onPress={() => { setSearch(''); setCategory('todas'); }} />}
@@ -776,6 +799,7 @@ export function RobinFoodApp() {
       <Heading>{selectedDonation.title}</Heading><Text style={styles.body}>{selectedDonation.quantity} {selectedDonation.unit} · {categoryLabels[selectedDonation.category]}</Text>
       <Text style={styles.body}>{selectedDonation.description ?? 'Alimento disponible para compartir.'}</Text><Text style={styles.body}>Donador: {selectedDonation.donorDisplayName ?? donor?.businessName ?? donor?.name ?? 'Donador Robin Food'}</Text><Text style={styles.body}>{selectedDonation.address}</Text>
       {currentUser.role === 'receptor' ? <Button label="Reservar donación" onPress={() => void reserve(selectedDonation)} /> : null}
+      <Button secondary label="Trazar ruta al donador" onPress={() => void Linking.openURL(`https://www.google.com/maps/dir/?api=1&origin=${currentUser.lat ?? TOLUCA.lat},${currentUser.lng ?? TOLUCA.lng}&destination=${selectedDonation.lat},${selectedDonation.lng}`).catch(() => setError('No se pudo abrir la ruta.'))} />
       <Button secondary label="Compartir" onPress={() => void Share.share({ message: `${selectedDonation.title} · ${selectedDonation.address}` })} />
     </View>;
   };
@@ -805,16 +829,21 @@ export function RobinFoodApp() {
   const isAdminPage = admin && ['inicio', 'usuarios', 'publicaciones', 'reportes', 'estadisticas', 'solicitudes', 'mas'].includes(page);
   return <ThemeContext.Provider value={dark}><LanguageContext.Provider value={currentUser.prefs.language}><SafeAreaView style={[styles.safe, dark && styles.darkSafe]}>
     <View style={[styles.appShell, isDesktop && styles.desktopShell]}>
-      {isDesktop ? <View style={[styles.sidebar, isAdminPage && styles.sidebarDark]}>
-        <View style={styles.sideBrand}><Text style={styles.robinSmall}>🐦</Text><Text style={[styles.strong, isAdminPage && styles.white]}>ROBIN FOOD</Text></View>
-        {nav.map((item) => <NavItem key={item.key} active={page === item.key} title={item.title} icon={item.icon} dark={dark || Boolean(isAdminPage)} onPress={() => setPage(item.key)} />)}
+      {isDesktop ? <View style={[styles.sidebar, sidebarCollapsed && styles.sidebarCollapsed, isAdminPage && styles.sidebarDark]}>
+        <View style={[styles.sideBrand, sidebarCollapsed && styles.sideBrandCollapsed]}>
+          <Text style={styles.robinSmall}>🐦</Text>
+          {!sidebarCollapsed ? <Text style={[styles.strong, isAdminPage && styles.white]}>ROBIN FOOD</Text> : null}
+          {Platform.OS === 'web' ? <Pressable accessibilityRole="button" accessibilityLabel="Pantalla completa" onPress={() => void toggleFullscreen()} style={styles.fullscreenButton}><Text style={styles.fullscreenText}>⛶</Text></Pressable> : null}
+          <Pressable accessibilityRole="button" accessibilityLabel={sidebarCollapsed ? 'Mostrar menú' : 'Ocultar menú'} onPress={() => setSidebarCollapsed((value) => !value)} style={styles.collapseButton}><Menu size={18} color={isAdminPage ? '#fff' : palette.ink} /></Pressable>
+        </View>
+        {nav.map((item) => <NavItem key={item.key} active={page === item.key} title={item.title} icon={item.icon} dark={dark || Boolean(isAdminPage)} collapsed={sidebarCollapsed} onPress={() => setPage(item.key)} />)}
         <View style={styles.sideSpacer} />
-        <NavItem title="Configuración" icon={Settings} dark={dark || Boolean(isAdminPage)} onPress={() => setPage('configuracion')} />
-        <NavItem title="Ayuda" icon={CircleHelp} dark={dark || Boolean(isAdminPage)} onPress={() => setPage('ayuda')} />
-        <NavItem title="Cerrar sesión" icon={LogOut} dark={dark || Boolean(isAdminPage)} onPress={() => void signOut()} />
+        <NavItem title="Configuración" icon={Settings} dark={dark || Boolean(isAdminPage)} collapsed={sidebarCollapsed} onPress={() => setPage('configuracion')} />
+        <NavItem title="Ayuda" icon={CircleHelp} dark={dark || Boolean(isAdminPage)} collapsed={sidebarCollapsed} onPress={() => setPage('ayuda')} />
+        <NavItem title="Cerrar sesión" icon={LogOut} dark={dark || Boolean(isAdminPage)} collapsed={sidebarCollapsed} onPress={() => void signOut()} />
       </View> : null}
       <View style={styles.main}>
-        {!isDesktop ? <View style={styles.mobileHeader}><Text style={styles.brandSmall}>🐦 Robin Food</Text><Pressable onPress={() => setPage('notificaciones')} accessibilityLabel="Abrir notificaciones"><Bell size={22} color={dark ? '#f4f1e8' : palette.ink} /></Pressable></View> : null}
+        {!isDesktop ? <View style={styles.mobileHeader}><Text style={styles.brandSmall}>🐦 Robin Food</Text><View style={styles.row}><Pressable onPress={() => void toggleFullscreen()} accessibilityLabel="Pantalla completa"><Text>⛶</Text></Pressable><Pressable onPress={() => setPage('notificaciones')} accessibilityLabel="Abrir notificaciones"><Bell size={22} color={dark ? '#f4f1e8' : palette.ink} /></Pressable></View></View> : null}
         <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopContent]}>
           {error ? <Pressable onPress={() => setError('')}><Text accessibilityRole="alert" style={styles.errorBanner}>{error}  ×</Text></Pressable> : null}
           {mainContent}
@@ -826,7 +855,9 @@ export function RobinFoodApp() {
     {toast ? <Toast text={toast} /> : null}
   </SafeAreaView></LanguageContext.Provider></ThemeContext.Provider>;
 }
-
+function AccessThanksModal({ onClose }: { onClose: () => void }) {
+  return <View style={styles.modalBackdrop}><View style={styles.modalCard}><Text style={styles.robin}>🐦</Text><Heading>Gracias por contactarnos</Heading><Text style={styles.body}>Hemos recibido tu solicitud de acceso. Espera nuestra respuesta; el equipo de Robin Food revisará tu información.</Text><Button label="Cerrar" onPress={onClose} /></View></View>;
+}
 function Metric({ label, value, dark = false }: { label: string; value: string | number; dark?: boolean }) {
   return <Card style={[styles.metricCard, dark && styles.metricDark]}><Text style={[styles.metricValue, dark && styles.white]}>{value}</Text><Text style={[styles.muted, dark && styles.darkMuted]}>{label}</Text></Card>;
 }
@@ -836,16 +867,32 @@ function Toast({ text }: { text: string }) {
 function EmptyState({ text, action, onPress }: { text: string; action: string; onPress: () => void }) {
   return <Card style={styles.empty}><Text style={styles.robin}>🐦</Text><Text style={styles.body}>{text}</Text><Button secondary label={action} onPress={onPress} /></Card>;
 }
-function NavItem({ title, icon: Icon, active, compact, dark, onPress }: { title: string; icon: typeof Home; active?: boolean; compact?: boolean; dark?: boolean; onPress: () => void }) {
+function NavItem({ title, icon: Icon, active, compact, dark, collapsed = false, onPress }: { title: string; icon: typeof Home; active?: boolean; compact?: boolean; dark?: boolean; collapsed?: boolean; onPress: () => void }) {
   const language = useContext(LanguageContext);
-  return <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={translate(title, language)} onPress={onPress} style={[compact ? styles.bottomTab : styles.navItem, active && (dark ? styles.navActiveDark : styles.navActive)]}>
-    <Icon size={20} color={active && dark ? palette.gold : active ? palette.ink : dark ? '#d9d4c8' : palette.muted} /><Text numberOfLines={1} style={[compact ? styles.tiny : styles.navText, dark && styles.darkMuted, active && styles.strong, active && dark && { color: palette.gold }]}>{title}</Text>
+  const [hovered, setHovered] = useState(false);
+  return <Pressable
+    accessibilityRole="tab"
+    accessibilityState={{ selected: active }}
+    accessibilityLabel={translate(title, language)}
+    onHoverIn={() => setHovered(true)}
+    onHoverOut={() => setHovered(false)}
+    onPress={onPress}
+    style={[compact ? styles.bottomTab : styles.navItem, collapsed && styles.navItemCollapsed, active && (dark ? styles.navActiveDark : styles.navActive)]}
+  >
+    <Icon size={20} color={active && dark ? palette.gold : active ? palette.ink : dark ? '#d9d4c8' : palette.muted} />{!collapsed ? <Text numberOfLines={1} style={[compact ? styles.tiny : styles.navText, dark && styles.darkMuted, active && styles.strong, active && dark && { color: palette.gold }]}>{title}</Text> : null}
+    {collapsed && hovered ? <View pointerEvents="none" style={styles.navTooltip}><Text style={styles.navTooltipText}>{translate(title, language)}</Text></View> : null}
   </Pressable>;
 }
 function ToggleRow({ title, detail, value, onPress }: { title: string; detail: string; value: boolean; onPress: () => void }) {
   return <Pressable onPress={onPress} accessibilityRole="switch" accessibilityState={{ checked: value }} style={styles.toggleRow}><View style={styles.flex}><Text style={styles.strong}>{title}</Text><Text style={styles.muted}>{detail}</Text></View><View style={[styles.toggle, value && styles.toggleOn]}><View style={[styles.toggleKnob, value && styles.toggleKnobOn]} /></View></Pressable>;
 }
 function roleName(role: Role) { return role === 'admin' ? 'Administración' : role === 'donador' ? 'Donador' : 'Receptor'; }
+function requestRequestMessage(message: string) { return message.trim() || 'Me gustaría participar en Robin Food y apoyar a la comunidad.'; }
+async function toggleFullscreen() {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  if (document.fullscreenElement) await document.exitFullscreen();
+  else await document.documentElement.requestFullscreen();
+}
 function routeLabel(route: string) { return ({ configuracion: 'Configuración', ayuda: 'Ayuda y preguntas frecuentes', contacto: 'Contactar soporte', terms: 'Términos y condiciones', about: 'Acerca de Robin Food' } as Record<string, string>)[route] ?? route; }
 function downloadCsv(csv: string, fileName: string) {
   if (Platform.OS !== 'web' || typeof document === 'undefined') return Share.share({ message: csv });
@@ -898,16 +945,23 @@ const LEGAL_SECTIONS: [string, string][] = [
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.cream }, darkSafe: { backgroundColor: '#171717' },
+  modalBackdrop: { position: 'absolute', inset: 0, backgroundColor: 'rgba(17,17,17,0.58)', alignItems: 'center', justifyContent: 'center', padding: 18, zIndex: 200 },
+  modalCard: { width: '100%', maxWidth: 460, gap: 14, alignItems: 'center', padding: 24, borderRadius: 22, backgroundColor: '#fff', borderWidth: 1, borderColor: palette.line },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.ink, gap: 12 },
   authWrap: { flex: 1, justifyContent: 'center' }, authDesktop: { alignSelf: 'center', width: '100%', maxWidth: 520, paddingVertical: 30 },
   authScroll: { flexGrow: 1, justifyContent: 'center', padding: 18 },
   authPanel: { gap: 12, padding: 24, borderRadius: 24, backgroundColor: '#fff', borderColor: palette.line, borderWidth: 1, width: '100%', maxWidth: 520, alignSelf: 'center' },
   formPanel: { gap: 12, padding: 22, borderRadius: 22, backgroundColor: '#fff', borderWidth: 1, borderColor: palette.line, width: '100%', maxWidth: 680, alignSelf: 'center' },
   panel: { padding: 20, gap: 16, backgroundColor: '#fff', borderRadius: 22, borderColor: palette.line, borderWidth: 1, width: '100%', maxWidth: 1000, alignSelf: 'center' },
-  appShell: { flex: 1, flexDirection: 'row' }, desktopShell: { maxWidth: 1600, alignSelf: 'center', width: '100%' },
+  appShell: { flex: 1, flexDirection: 'row', width: '100%', height: '100%' }, desktopShell: { alignSelf: 'center', width: '100%' },
   sidebar: { width: 246, padding: 18, backgroundColor: '#fff', borderRightColor: palette.line, borderRightWidth: 1, gap: 8 },
+  sidebarCollapsed: { width: 72, paddingHorizontal: 10 },
+  sideBrandCollapsed: { justifyContent: 'center', flexWrap: 'wrap' },
+  collapseButton: { marginLeft: 'auto', width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  fullscreenButton: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  fullscreenText: { fontSize: 18, color: palette.ink },
   sidebarDark: { backgroundColor: palette.ink, borderRightColor: '#333' }, sideBrand: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, marginBottom: 15 },
-  sideSpacer: { flex: 1 }, main: { flex: 1, minWidth: 0 }, scrollContent: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, gap: 18, maxWidth: 1100, width: '100%', alignSelf: 'center' }, desktopContent: { padding: 30 },
+  sideSpacer: { flex: 1 }, main: { flex: 1, minWidth: 0 },   scrollContent: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, gap: 18, width: '100%', alignSelf: 'center' }, desktopContent: { padding: 30 },
   mobileHeader: { height: 54, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, backgroundColor: '#fff', borderBottomColor: palette.line, borderBottomWidth: 1 },
   brand: { textAlign: 'center', fontSize: 15, letterSpacing: 4, color: palette.goldDark, fontWeight: '800' }, brandSmall: { fontWeight: '800', color: palette.ink, fontSize: 17 }, brandSlogan: { color: palette.goldDark, fontWeight: '700' }, robin: { fontSize: 46, textAlign: 'center' }, robinSmall: { fontSize: 27 },
   hero: { fontSize: 44, lineHeight: 48, fontWeight: '900', color: palette.ink, letterSpacing: -1 }, body: { color: palette.inkSoft, fontSize: 15, lineHeight: 23 }, bodySmall: { color: palette.muted, fontSize: 13, lineHeight: 19 }, muted: { color: palette.muted, fontSize: 13, lineHeight: 20 }, strong: { color: palette.ink, fontWeight: '800', fontSize: 16 }, link: { color: palette.goldDark, fontWeight: '700', textDecorationLine: 'underline' }, error: { color: palette.danger, fontWeight: '600' }, errorBanner: { backgroundColor: '#ffefed', color: '#b6291f', padding: 12, borderRadius: 12 },
@@ -918,7 +972,9 @@ const styles = StyleSheet.create({
   donationCard: { width: 285, flexGrow: 1, flexBasis: 230, overflow: 'hidden' },   foodImage: { height: 150, width: '100%', borderRadius: 12, backgroundColor: palette.cream }, publishImage: { height: 210, width: '100%', borderRadius: 15, backgroundColor: palette.cream }, detailImage: { width: '100%', height: 300, borderRadius: 18, backgroundColor: palette.cream }, imageFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#f5ead1' },
   code: { textAlign: 'center', fontSize: 27, fontWeight: '900', letterSpacing: 5, color: palette.goldDark, paddingVertical: 8 }, notice: { borderLeftWidth: 4, borderLeftColor: palette.line }, unread: { borderLeftColor: palette.gold, backgroundColor: '#fffaf0' }, profileHero: { alignItems: 'center', padding: 24 }, avatar: { width: 64, height: 64, borderRadius: 32, textAlign: 'center', textAlignVertical: 'center', overflow: 'hidden', backgroundColor: palette.gold, fontSize: 30, fontWeight: '800' }, avatarSmall: { width: 42, height: 42, borderRadius: 21, overflow: 'hidden', textAlign: 'center', textAlignVertical: 'center', backgroundColor: palette.gold, fontWeight: '800', fontSize: 19 }, userCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   metricCard: { flexGrow: 1, flexBasis: 145, minWidth: 130, padding: 15 }, metricDark: { backgroundColor: palette.ink, borderColor: '#303030' }, metricValue: { color: palette.ink, fontSize: 25, fontWeight: '900' }, metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 }, white: { color: '#fff' }, darkMuted: { color: '#c4beb2' },
-  metricDarkText: { color: '#fff' }, footer: { paddingTop: 16, borderTopColor: palette.line, borderTopWidth: 1, gap: 7 }, bottomNav: { minHeight: 66, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: '#fff', borderTopColor: palette.line, borderTopWidth: 1, paddingHorizontal: 4, paddingBottom: 3 }, bottomTab: { minWidth: 52, maxWidth: 90, minHeight: 54, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 12 }, navItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, minHeight: 46, borderRadius: 12 }, navActive: { backgroundColor: '#f8efd9' }, navActiveDark: { backgroundColor: '#302919' }, navText: { color: palette.muted, fontWeight: '600', fontSize: 14 }, tiny: { fontSize: 10, color: palette.muted }, toast: { position: 'absolute', bottom: 86, left: 18, right: 18, minHeight: 48, padding: 13, borderRadius: 14, backgroundColor: palette.ink, flexDirection: 'row', gap: 9, alignItems: 'center', justifyContent: 'center', zIndex: 100 }, toastText: { color: '#fff', fontWeight: '700', textAlign: 'center' },
+  metricDarkText: { color: '#fff' }, footer: { paddingTop: 16, borderTopColor: palette.line, borderTopWidth: 1, gap: 7 }, bottomNav: { minHeight: 66, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: '#fff', borderTopColor: palette.line, borderTopWidth: 1, paddingHorizontal: 4, paddingBottom: 3 }, bottomTab: { minWidth: 52, maxWidth: 90, minHeight: 54, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 12 }, navItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, minHeight: 46, borderRadius: 12 }, navItemCollapsed: { justifyContent: 'center', paddingHorizontal: 10 }, navActive: { backgroundColor: '#f8efd9' }, navActiveDark: { backgroundColor: '#302919' }, navText: { color: palette.muted, fontWeight: '600', fontSize: 14 }, tiny: { fontSize: 10, color: palette.muted }, toast: { position: 'absolute', bottom: 86, left: 18, right: 18, minHeight: 48, padding: 13, borderRadius: 14, backgroundColor: palette.ink, flexDirection: 'row', gap: 9, alignItems: 'center', justifyContent: 'center', zIndex: 100 }, toastText: { color: '#fff', fontWeight: '700', textAlign: 'center' },
+  navTooltip: { position: 'absolute', left: 58, top: 8, zIndex: 300, backgroundColor: palette.ink, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
+  navTooltipText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   empty: { alignItems: 'center', padding: 24 }, back: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44 }, multiline: { minHeight: 100, textAlignVertical: 'top' }, flexInput: { flex: 1, minWidth: 60 }, checkbox: { width: 24, height: 24, borderWidth: 1, borderRadius: 5, borderColor: palette.goldDark, alignItems: 'center', justifyContent: 'center' }, legalBox: { maxHeight: 420, padding: 12, backgroundColor: palette.cream, borderRadius: 12 }, legalSection: { paddingBottom: 14, gap: 4 }, tempCard: { backgroundColor: palette.cream },
   toggleRow: { minHeight: 67, padding: 13, borderRadius: 14, borderColor: palette.line, borderWidth: 1, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', gap: 14 }, toggle: { width: 49, height: 29, borderRadius: 16, backgroundColor: '#ddd', padding: 3, justifyContent: 'center' }, toggleOn: { backgroundColor: palette.gold }, toggleKnob: { width: 23, height: 23, borderRadius: 12, backgroundColor: '#fff' }, toggleKnobOn: { alignSelf: 'flex-end' }, reservationChoice: { padding: 14, borderRadius: 13, backgroundColor: '#fff', borderWidth: 1, borderColor: palette.line, gap: 5 }, selectedChoice: { borderColor: palette.goldDark, backgroundColor: '#fff8e9' },
   chat: { maxHeight: 360 }, chatBubble: { padding: 12, borderRadius: 15, marginVertical: 5, maxWidth: '84%' }, chatMine: { alignSelf: 'flex-end', backgroundColor: '#f3e5c4' }, chatSupport: { alignSelf: 'flex-start', backgroundColor: '#fff', borderWidth: 1, borderColor: palette.line },   chart: { minHeight: 145, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', paddingVertical: 14 }, barGroup: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 }, bar: { width: 12, backgroundColor: palette.gold, borderTopLeftRadius: 5, borderTopRightRadius: 5 }, barSecondary: { backgroundColor: palette.inkSoft },

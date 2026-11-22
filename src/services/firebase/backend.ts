@@ -15,6 +15,8 @@ import {
   onSnapshot,
   query,
   where,
+  setDoc,
+  updateDoc,
   type DocumentData,
   type QueryConstraint,
   type Unsubscribe,
@@ -160,13 +162,24 @@ export function observeAuth(
 }
 
 export async function acceptTerms(): Promise<void> {
-  await call<void>('acceptTerms', { version: TERMS_VERSION });
+  const user = currentUser();
+  await updateDoc(doc(getFirebaseClient().db, 'users', user.uid), {
+    acceptedTermsVersion: TERMS_VERSION,
+    acceptedTermsAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 export async function updatePassword(password: string): Promise<void> {
+  if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+    throw new Error('Usa al menos 8 caracteres, una mayúscula, un número y un símbolo.');
+  }
   const user = currentUser();
   await updateAuthPassword(user, password);
-  await call<void>('completePasswordChange');
+  await updateDoc(doc(getFirebaseClient().db, 'users', user.uid), {
+    mustChangePassword: false,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
@@ -179,12 +192,14 @@ export async function requestPasswordReset(email: string): Promise<void> {
 }
 
 export async function requestAccess(input: Omit<AccessRequest, 'id' | 'status' | 'createdAt'>): Promise<void> {
-  await call<void>('createAccessRequest', {
+  await setDoc(doc(collection(getFirebaseClient().db, 'accessRequests'), Crypto.randomUUID()), {
     type: input.type,
     name: input.name,
     email: input.email,
-    desiredRole: input.desiredRole,
-    message: input.message,
+    ...(input.desiredRole ? { desiredRole: input.desiredRole } : {}),
+    message: input.message ?? '',
+    status: 'pendiente',
+    createdAt: new Date().toISOString(),
   });
 }
 
@@ -197,17 +212,30 @@ export async function acceptAccessRequestAsAdmin(requestId: string, approve: boo
 }
 
 export async function updateProfile(name: string, phone?: string): Promise<PublicUser> {
-  await call<void>('updateProfile', { name, phone });
+  await updateDoc(doc(getFirebaseClient().db, 'users', currentUser().uid), {
+    name: name.trim(),
+    ...(phone !== undefined ? { phone: phone.trim() } : {}),
+    updatedAt: new Date().toISOString(),
+  });
   return getProfile(currentUser().uid);
 }
 
 export async function updatePreferences(prefs: Partial<Preferences>): Promise<PublicUser> {
-  await call<void>('updatePreferences', { prefs });
+  const profile = await getProfile(currentUser().uid);
+  await updateDoc(doc(getFirebaseClient().db, 'users', currentUser().uid), {
+    prefs: { ...profile.prefs, ...prefs },
+    updatedAt: new Date().toISOString(),
+  });
   return getProfile(currentUser().uid);
 }
 
 export async function updateLocation(latitude: number, longitude: number): Promise<PublicUser> {
-  await call<void>('updateLocation', { latitude, longitude });
+  await updateDoc(doc(getFirebaseClient().db, 'users', currentUser().uid), {
+    lat: latitude,
+    lng: longitude,
+    prefs: { ...(await getProfile(currentUser().uid)).prefs, location: true },
+    updatedAt: new Date().toISOString(),
+  });
   return getProfile(currentUser().uid);
 }
 
@@ -243,22 +271,37 @@ async function uploadPhoto(uri: string, index: number, uid: string): Promise<str
 
 export async function publishDonation(input: NewDonationInput): Promise<Donation> {
   const user = currentUser();
-  if (input.photos.length < 1 || input.photos.length > 4) throw new Error('Selecciona entre una y cuatro fotos.');
-  const photoPaths = await Promise.all(input.photos.map((uri, index) => uploadPhoto(uri, index, user.uid)));
-  return call<Donation>('publishDonation', {
-    donation: {
-      title: input.title,
-      description: input.description ?? '',
-      category: input.category,
-      quantity: input.quantity,
-      unit: input.unit,
-      address: input.address,
-      lat: input.lat,
-      lng: input.lng,
-      availableUntil: input.availableUntil,
-    },
-    photoPaths,
-  });
+  if (!input.title.trim() || input.quantity <= 0) throw new Error('Completa el nombre y la cantidad.');
+  if (input.photos.length > 4) throw new Error('Puedes adjuntar hasta cuatro fotos.');
+  const profile = await getProfile(user.uid);
+  const now = new Date().toISOString();
+  const donationRef = doc(collection(getFirebaseClient().db, 'donations'));
+  const photos: string[] = [];
+  for (let index = 0; index < input.photos.length; index++) {
+    if (!input.photos[index] || /^https?:\/\//i.test(input.photos[index])) continue;
+    photos.push(await uploadPhoto(input.photos[index], index, user.uid));
+  }
+  const donation: Donation = {
+    id: donationRef.id,
+    donorId: user.uid,
+    donorDisplayName: profile.businessName ?? profile.name,
+    title: input.title.trim(),
+    description: input.description ?? '',
+    category: input.category,
+    quantity: input.quantity,
+    unit: input.unit,
+    photos,
+    address: input.address,
+    lat: input.lat,
+    lng: input.lng,
+    availableUntil: input.availableUntil,
+    status: 'disponible',
+    createdAt: now,
+    updatedAt: now,
+  };
+  const { id: _id, ...donationData } = donation;
+  await setDoc(donationRef, donationData);
+  return donation;
 }
 
 export async function validateDelivery(reservationId: string, enteredCode: string): Promise<void> {
