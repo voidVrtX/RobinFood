@@ -30,6 +30,7 @@ import type {
   Preferences, PublicUser, ReportAggregate, Reservation, Role, User, MapLocation,
 } from '@/types/models';
 import { getFirebaseClient } from './firebaseClient';
+import { normalizeGoogleDriveImageUrl } from '@/utils/googleDrive';
 
 type AccountInput = { role: Exclude<Role, 'admin'>; name: string; email: string; phone?: string };
 type NewDonationInput = Omit<Donation, 'id' | 'donorId' | 'status' | 'createdAt' | 'updatedAt' | 'reservedBy' | 'reservationId'>;
@@ -267,22 +268,6 @@ async function uploadPhoto(uri: string, index: number, uid: string): Promise<str
   const path = `staging/${uid}/${Crypto.randomUUID()}-${index}`;
   await uploadBytes(ref(getFirebaseClient().storage, path), blob, { contentType });
   return path;
-}
-
-export function normalizeGoogleDriveImageUrl(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  let id = '';
-  try {
-    const url = new URL(trimmed);
-    const fileMatch = url.pathname.match(/\/d\/([A-Za-z0-9_-]+)/);
-    if (fileMatch) id = fileMatch[1];
-    else if (url.searchParams.has('id')) id = url.searchParams.get('id')?.trim() ?? '';
-  } catch {
-    return null;
-  }
-  if (!/^[A-Za-z0-9_-]{20,}$/.test(id)) return null;
-  return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w1200`;
 }
 
 export async function publishDonation(input: NewDonationInput): Promise<Donation> {

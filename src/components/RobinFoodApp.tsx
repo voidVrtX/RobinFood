@@ -25,6 +25,7 @@ import {
 } from '@/services/foodService';
 import { haversineKm } from '@/utils/geo';
 import { isDemoMode } from '@/services/firebase/mode';
+import { getGoogleDriveFileId, normalizeGoogleDriveImageUrl } from '@/utils/googleDrive';
 import { possibleSurplusLocations } from '@/data/tolucaRoutes';
 
 function translatedChildren(children: React.ReactNode, language: 'es' | 'en'): React.ReactNode {
@@ -352,6 +353,10 @@ export function RobinFoodApp() {
   };
   const doPublish = async () => {
     if (!currentUser) return;
+    if (publishDriveUrl.trim() && !getGoogleDriveFileId(publishDriveUrl)) {
+      setError('Pega el enlace directo del archivo de imagen de Google Drive, no el enlace de la carpeta.');
+      return;
+    }
     const durations: Record<Exclude<typeof publishDuration, 'custom' | 'manual'>, number> = {
       '15m': 15, '30m': 30, '1h': 60, '3h': 180,
     };
@@ -656,8 +661,18 @@ export function RobinFoodApp() {
       value={publishDriveUrl}
       onChangeText={(value) => {
         setPublishDriveUrl(value);
-        setPublishPhoto(value);
-        setPublishPhotos(value.trim() ? [value.trim()] : []);
+        if (!value.trim()) {
+          setPublishPhoto('');
+          setPublishPhotos([]);
+        } else if (getGoogleDriveFileId(value)) {
+          const normalized = normalizeGoogleDriveImageUrl(value);
+          setPublishPhoto(normalized ?? '');
+          setPublishPhotos(normalized ? [value.trim()] : []);
+        } else {
+          setPublishPhoto('');
+          setPublishPhotos([]);
+          setError('Pega el enlace del archivo de imagen, no el enlace de la carpeta.');
+        }
       }}
     />
     <Button secondary label="Abrir carpeta de fotos en Drive" onPress={() => void Linking.openURL('https://drive.google.com/drive/folders/1KfdGtxix6gpkZTN0jKhBIASgrdEo4IZ7?usp=sharing').catch(() => setError('No se pudo abrir Google Drive.'))} />
