@@ -1,6 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import type { DemoDatabase, Donation, Role, User } from '@/types/models';
 import { TOLUCA } from '@/theme/palette';
+import { possibleSurplusLocations, potentialRecipients } from '@/data/tolucaRoutes';
 import { emptyDatabase, writeDatabase } from './localDb';
 
 const now = new Date();
@@ -8,16 +9,16 @@ const iso = (days: number) => new Date(now.getTime() + days * 86_400_000).toISOS
 const id = (prefix: string, n: number) => `${prefix}-${String(n).padStart(3, '0')}`;
 const defaultPrefs = { notifications: true, pushNotifications: false, location: false, camera: false, darkMode: 'system' as const, language: 'es' as const };
 
-const demoAccounts: { role: Role; name: string; email: string; password: string; status?: User['status']; businessName?: string; organization?: string }[] = [
+const demoAccounts: { role: Role; name: string; email: string; password: string; status?: User['status']; businessName?: string; organization?: string; address?: string; lat?: number; lng?: number }[] = [
   { role: 'admin', name: 'Admin Robin Food', email: 'admin@robinfood.mx', password: 'Admin#2026' },
-  { role: 'donador', name: 'Panadería La Esperanza', email: 'donador@robinfood.mx', password: 'Donador#2026', businessName: 'Panadería La Esperanza' },
-  { role: 'receptor', name: 'María González', email: 'receptor@robinfood.mx', password: 'Receptor#2026', organization: 'Comunidad Toluca' },
-  { role: 'donador', name: 'voidChernobyl', email: 'void@robinfood.mx', password: 'Void#2026' },
-  { role: 'donador', name: 'Ana Pérez', email: 'ana.perez@robinfood.mx', password: 'Ana#20262' },
-  { role: 'receptor', name: 'Juan López', email: 'juan.lopez@robinfood.mx', password: 'Juan#20262' },
-  { role: 'receptor', name: 'Comedor Comunitario San José', email: 'comedor.sanjose@robinfood.mx', password: 'Comedor#2026', organization: 'Comedor San José' },
-  { role: 'donador', name: 'Fruvertodo Toluca', email: 'fruvertodo@robinfood.mx', password: 'Fruta#2026', status: 'suspendido', businessName: 'Fruvertodo Toluca' },
-  { role: 'receptor', name: 'Lucía Ramírez', email: 'lucia.ramirez@robinfood.mx', password: 'Lucia#2026', organization: 'Red Vecinal Metepec' },
+  { role: 'donador', name: 'Pastelerías Esperanza (Hidalgo)', email: 'donador@robinfood.mx', password: 'Donador#2026', businessName: 'Pastelerías Esperanza (Hidalgo)', address: possibleSurplusLocations[0].address, lat: possibleSurplusLocations[0].latitude, lng: possibleSurplusLocations[0].longitude },
+  { role: 'receptor', name: 'Casa Hogar Alegría', email: 'receptor@robinfood.mx', password: 'Receptor#2026', organization: 'Casa Hogar Alegría', address: potentialRecipients[0].address, lat: potentialRecipients[0].latitude, lng: potentialRecipients[0].longitude },
+  { role: 'donador', name: 'Pastelerías Esperanza (Rayón)', email: 'void@robinfood.mx', password: 'Void#2026', businessName: 'Pastelerías Esperanza (Rayón)', address: possibleSurplusLocations[1].address, lat: possibleSurplusLocations[1].latitude, lng: possibleSurplusLocations[1].longitude },
+  { role: 'donador', name: 'Fonda Degollado', email: 'ana.perez@robinfood.mx', password: 'Ana#20262', businessName: 'Fonda Degollado', address: possibleSurplusLocations[2].address, lat: possibleSurplusLocations[2].latitude, lng: possibleSurplusLocations[2].longitude },
+  { role: 'receptor', name: 'Hogares Providencia', email: 'juan.lopez@robinfood.mx', password: 'Juan#20262', organization: 'Hogares Providencia', address: potentialRecipients[1].address, lat: potentialRecipients[1].latitude, lng: potentialRecipients[1].longitude },
+  { role: 'receptor', name: 'Por Una Niñez Feliz A.C.', email: 'comedor.sanjose@robinfood.mx', password: 'Comedor#2026', organization: 'Por Una Niñez Feliz A.C.', address: potentialRecipients[2].address, lat: potentialRecipients[2].latitude, lng: potentialRecipients[2].longitude },
+  { role: 'donador', name: 'Gran Cardenal, el Sabor de Casa', email: 'fruvertodo@robinfood.mx', password: 'Fruta#2026', status: 'suspendido', businessName: 'Gran Cardenal, el Sabor de Casa', address: possibleSurplusLocations[3].address, lat: possibleSurplusLocations[3].latitude, lng: possibleSurplusLocations[3].longitude },
+  { role: 'receptor', name: 'Comedor Comunitario San José', email: 'lucia.ramirez@robinfood.mx', password: 'Lucia#2026', organization: 'Comedor Comunitario San José', address: TOLUCA.address, lat: TOLUCA.lat, lng: TOLUCA.lng },
 ];
 
 const foods: Pick<Donation, 'title' | 'description' | 'category' | 'quantity' | 'unit' | 'address' | 'lat' | 'lng'>[] = [
@@ -51,7 +52,7 @@ export async function createSeed(): Promise<DemoDatabase> {
       createdBy: 'seed', createdAt: iso(-90), updatedAt: iso(-1),
       ...(account.businessName ? { businessName: account.businessName } : {}),
       ...(account.organization ? { organization: account.organization } : {}),
-      ...(account.role !== 'admin' ? { address: TOLUCA.address, lat: TOLUCA.lat, lng: TOLUCA.lng } : {}),
+      ...(account.role !== 'admin' ? { address: account.address ?? TOLUCA.address, lat: account.lat ?? TOLUCA.lat, lng: account.lng ?? TOLUCA.lng } : {}),
     });
   }
   database.users = users;

@@ -33,4 +33,4 @@ Las preferencias viven en el perfil `users/{uid}.prefs`. No se guarda toda la ba
 
 Las cuentas, contraseñas y publicaciones de `src/services/db/seed.ts` son exclusivamente datos de demostración locales. No hay migración automática ni seed de esos datos en Firebase. Cambiar a Firebase no copia ni sincroniza la base local. Para probar datos reales, crea cuentas autorizadas y publicaciones desde los flujos conectados.
 
-Los puntos sugeridos de Toluca se muestran como marcadores informativos en el mapa y los puntos de posible recolección pueden elegirse al crear una publicación. No crean cuentas ni contactos verificados; confirma horarios y excedentes directamente.
+Los establecimientos autorizados se almacenan en la colección `locations` de Firestore y el cliente obtiene únicamente ubicaciones con `active=true`. Los puntos visibles pueden elegirse al crear una publicación. La operación `upsertLocation` solo acepta cuentas administradoras. Los horarios y datos deben mantenerse directamente con cada establecimiento.

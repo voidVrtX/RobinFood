@@ -57,3 +57,15 @@ El blueprint `render.yaml` configura:
 Al crear el Static Site en Render, proporciona la variable `EXPO_PUBLIC_FIREBASE_API_KEY` con el valor web de Firebase. Render compila Expo con esas variables y publica el contenido estático. El blueprint no añade rewrites: la app Expo actual usa una sola pantalla raíz y la exportación estática genera `index.html`. Si en el futuro se añaden rutas web no exportadas, revisa el artefacto `dist` antes de configurar rewrites.
 
 Antes de publicar en Render, crea los índices y despliega Rules/Functions con aprobación separada; verifica Email/Password, dominios autorizados, Storage y facturación. No hay configuración ni despliegue de notificaciones push: los avisos actuales son in-app y se sincronizan en Firestore.
+
+## 6. Importación de establecimientos
+
+Desde una terminal autenticada con ADC, ejecuta:
+
+```powershell
+cd functions
+npm ci
+npm run import-establishments
+```
+
+El script crea o actualiza las cuentas de establecimientos en Firebase Authentication, asigna roles, crea perfiles y importa las ubicaciones autorizadas en `locations`. Conserva las contraseñas temporales fuera del repositorio y exige cambiarla al primer acceso. Ejecuta este script solo después de habilitar Email/Password y crear la cuenta administradora inicial.

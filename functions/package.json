@@ -7,7 +7,8 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "import-establishments": "node scripts/import-establishments.mjs"
   },
   "dependencies": {
     "firebase-admin": "^13.5.0",

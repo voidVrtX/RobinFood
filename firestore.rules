@@ -84,6 +84,11 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /locations/{locationId} {
+      allow get, list: if activeUser();
+      allow create, update, delete: if false;
+    }
+
     match /rateLimits/{rateLimitId} {
       allow read, write: if false;
     }

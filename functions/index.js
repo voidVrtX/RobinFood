@@ -116,6 +116,33 @@ exports.createAccessRequest = onCall({ region, maxInstances: 5 }, async (request
   return { id: requestRef.id };
 });
 
+exports.upsertLocation = onCall({ region }, async (request) => {
+  const { uid } = await requireUser(request, ['admin']);
+  const input = request.data?.location;
+  if (!input || typeof input !== 'object') throw new HttpsError('invalid-argument', 'La ubicación no es válida.');
+  const name = text(input.name, 'nombre', 2, 120);
+  const address = text(input.address, 'dirección', 4, 240);
+  const schedule = text(input.schedule || 'Horario por confirmar', 'horario', 2, 120);
+  const phone = typeof input.phone === 'string' ? clean(input.phone).slice(0, 30) : '';
+  if (!['recoleccion', 'receptor'].includes(input.type)) {
+    throw new HttpsError('invalid-argument', 'El tipo de ubicación no es válido.');
+  }
+  assertCoordinates(input.latitude, input.longitude);
+  const now = nowIso();
+  const id = typeof input.id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(input.id)
+    ? input.id
+    : db.collection('locations').doc().id;
+  const location = {
+    name, address, schedule, phone, type: input.type,
+    latitude: input.latitude, longitude: input.longitude,
+    active: input.active !== false, createdAt: typeof input.createdAt === 'string' ? input.createdAt : now,
+    updatedAt: now,
+  };
+  await db.collection('locations').doc(id).set(location, { merge: true });
+  await db.collection('auditLog').add(audit(uid, 'upsert', 'location', id, name));
+  return { location: { id, ...location } };
+});
+
 exports.createAccount = onCall({ region }, async (request) => {
   const { uid } = await requireUser(request, ['admin']);
   const input = request.data || {};
@@ -249,14 +276,14 @@ exports.publishDonation = onCall({ region, maxInstances: 5 }, async (request) =>
   }
   const donationRef = db.collection('donations').doc();
   const destinationPaths = staging.map((_, index) => `donations/${donationRef.id}/${index + 1}`);
+  const createdAt = nowIso();
+  const donorDisplayName = typeof profile.businessName === 'string' && profile.businessName.trim()
+    ? clean(profile.businessName.trim())
+    : 'Donador Robin Food';
   try {
     await Promise.all(staging.map((file, index) => file.copy(bucket.file(destinationPaths[index]))));
     const recipientQuery = db.collection('users').where('role', '==', 'receptor').where('status', '==', 'activo');
     const recipientDocs = await recipientQuery.get();
-    const createdAt = nowIso();
-    const donorDisplayName = typeof profile.businessName === 'string' && profile.businessName.trim()
-      ? clean(profile.businessName.trim())
-      : 'Donador Robin Food';
     await db.runTransaction(async (transaction) => {
       const currentProfile = await transaction.get(db.collection('users').doc(uid));
       if (!currentProfile.exists || currentProfile.data().status !== 'activo' || currentProfile.data().role !== 'donador') {

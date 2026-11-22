@@ -119,6 +119,22 @@ export interface AuditEntry {
   createdAt: string;
 }
 
+export type LocationType = 'recoleccion' | 'receptor';
+
+export interface MapLocation {
+  id: string;
+  name: string;
+  address: string;
+  schedule: string;
+  latitude: number;
+  longitude: number;
+  phone?: string;
+  type: LocationType;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ReportAggregate {
   id: string;
   users: number;

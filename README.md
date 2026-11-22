@@ -47,21 +47,11 @@ El esquema y los permisos están descritos en [docs/MIGRACION_BACKEND.md](./docs
 - Las notificaciones push no están implementadas. Solo existen avisos dentro de la app sincronizados por Firestore.
 - Mapa OSM, filtros, navegación por rol, soporte, reportes, CSV e interfaz responsiva.
 
-## Cuentas demo
+## Datos locales y establecimientos reales
 
-Las siguientes cuentas solo existen en la base local de demostración. No las crees en Firebase ni reutilices sus contraseñas:
+La base local conserva fixtures únicamente cuando `EXPO_PUBLIC_DEMO_MODE=true`. La producción usa Firebase y no registra esas cuentas como datos reales.
 
-| Rol | Correo | Contraseña |
-|---|---|---|
-| Administrador demo | admin@robinfood.mx | Admin#2026 |
-| Donador demo | donador@robinfood.mx | Donador#2026 |
-| Receptor demo | receptor@robinfood.mx | Receptor#2026 |
-| Donador demo | void@robinfood.mx | Void#2026 |
-| Donador demo | ana.perez@robinfood.mx | Ana#20262 |
-| Receptor demo | juan.lopez@robinfood.mx | Juan#20262 |
-| Receptor demo | comedor.sanjose@robinfood.mx | Comedor#2026 |
-| Donador demo suspendido | fruvertodo@robinfood.mx | Fruta#2026 |
-| Receptor demo | lucia.ramirez@robinfood.mx | Lucia#2026 |
+Los establecimientos visitados y autorizados se muestran con su nombre y ubicación. Las cuentas adicionales se aprovisionan por administración; no reutilices las contraseñas históricas de demostración. La colección `locations` se sincroniza desde Firestore y puede administrarse mediante `upsertLocation`.
 
 ## Estructura
 

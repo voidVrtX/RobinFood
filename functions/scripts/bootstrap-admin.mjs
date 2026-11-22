@@ -1,6 +1,6 @@
 import { applicationDefault, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getFirestore } from 'firebase-admin/firestore';
 
 const projectId = 'robinfood-fireb';
 const uid = process.env.BOOTSTRAP_ADMIN_UID;

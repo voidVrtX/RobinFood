@@ -1,4 +1,4 @@
-import type { AccessRequest, Database, DemoDatabase, Donation, Preferences, PublicUser, Role, User } from '@/types/models';
+import type { AccessRequest, Database, DemoDatabase, Donation, MapLocation, Preferences, PublicUser, Role, User } from '@/types/models';
 import * as demo from './demoFoodService';
 import * as firebase from './firebase/backend';
 import { isDemoMode } from './firebase/mode';
@@ -105,6 +105,18 @@ export async function expireStaleRecords(): Promise<number> {
 
 export async function updateLocation(actorId: string, latitude: number, longitude: number): Promise<PublicUser> {
   return isDemoMode ? demo.updateLocation(actorId, latitude, longitude) : firebase.updateLocation(latitude, longitude);
+}
+
+export async function getMapLocations(): Promise<MapLocation[]> {
+  if (isDemoMode) return [];
+  return firebase.getMapLocations();
+}
+
+export async function upsertMapLocation(
+  input: Omit<MapLocation, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+): Promise<MapLocation> {
+  if (isDemoMode) throw new Error('Las ubicaciones compartidas solo están disponibles con Firebase.');
+  return firebase.upsertMapLocation(input);
 }
 
 export async function getImpact(): Promise<{ rescuedKg: number; meals: number; co2Kg: number; deliveries: number }> {

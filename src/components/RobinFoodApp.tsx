@@ -15,13 +15,13 @@ import * as Location from 'expo-location';
 import { useAppStore } from '@/store/appStore';
 import { palette, TERMS_VERSION, TOLUCA } from '@/theme/palette';
 import { LanguageContext, ThemeContext, translate } from '@/theme/AppContext';
-import type { Category, Donation, PublicUser, Role } from '@/types/models';
+import type { Category, Donation, MapLocation, PublicUser, Role } from '@/types/models';
 import MapPanel from './MapPanel';
 import { Button, Card, Heading, Label, TextField } from './Controls';
 import {
   acceptAccessRequestAsAdmin, acceptTerms, cancelReservation, createUser, exportCsv, getImpact,
   cancelDonation, expireStaleRecords, markNotificationsRead, moderateDonation, publishDonation, requestAccess, sendSupportMessage,
-  replySupportMessage, requestPasswordReset, resetDemo, resolvePhoto, setUserStatus, signIn, snapshot, updateLocation, updatePassword, updatePreferences, updateProfile, validateDelivery,
+  replySupportMessage, requestPasswordReset, resetDemo, resolvePhoto, setUserStatus, signIn, snapshot, updateLocation, updatePassword, updatePreferences, updateProfile, validateDelivery, getMapLocations,
 } from '@/services/foodService';
 import { haversineKm } from '@/utils/geo';
 import { isDemoMode } from '@/services/firebase/mode';
@@ -126,9 +126,9 @@ type Screen =
   | 'reportes' | 'estadisticas' | 'solicitudes' | 'mas' | 'detalle';
 
 const demoAccounts = [
-  { role: 'Administrador', email: 'admin@robinfood.mx', password: 'Admin#2026' },
-  { role: 'Donador', email: 'donador@robinfood.mx', password: 'Donador#2026' },
-  { role: 'Receptor', email: 'receptor@robinfood.mx', password: 'Receptor#2026' },
+  { role: 'Administrador · Admin Robin Food', email: 'admin@robinfood.mx', password: 'Admin#2026' },
+  { role: 'Donador · Pastelerías Esperanza (Hidalgo)', email: 'donador@robinfood.mx', password: 'Donador#2026' },
+  { role: 'Receptor · Casa Hogar Alegría', email: 'receptor@robinfood.mx', password: 'Receptor#2026' },
 ];
 const imageFallback = 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?auto=format&fit=crop&w=800&q=80';
 const visibleDemo = isDemoMode;
@@ -186,6 +186,7 @@ export function RobinFoodApp() {
   const [supportText, setSupportText] = useState('');
   const [activeConversation, setActiveConversation] = useState('');
   const [impact, setImpact] = useState({ rescuedKg: 0, meals: 0, co2Kg: 0, deliveries: 0 });
+  const [mapLocations, setMapLocations] = useState<MapLocation[]>([]);
 
   const currentUser = storeUser;
   const accountData = database;
@@ -233,6 +234,16 @@ export function RobinFoodApp() {
     const timer = setTimeout(() => setToast(''), 3500);
     return () => clearTimeout(timer);
   }, [toast]);
+  useEffect(() => {
+    if (!currentUser || isDemoMode) return;
+    let active = true;
+    void getMapLocations().then((locations) => {
+      if (active) setMapLocations(locations);
+    }).catch((reason: unknown) => {
+      if (active) setError(reason instanceof Error ? reason.message : 'No se pudieron cargar las ubicaciones.');
+    });
+    return () => { active = false; };
+  }, [currentUser]);
   useEffect(() => {
     if (!currentUser && !isDemoMode) return undefined;
     let active = true;
@@ -577,7 +588,7 @@ export function RobinFoodApp() {
     }
     return <View style={styles.content}>
       <View style={styles.heroCard}><Text style={styles.eyebrow}>TOLUCA, ESTADO DE MÉXICO</Text><Heading>Alimentos cerca de ti</Heading><Text style={styles.body}>Comparte. Aprovecha. Reduce.</Text></View>
-      <MapPanel donations={filteredDonations} />
+      <MapPanel donations={filteredDonations} locations={mapLocations} />
       {renderFilters()}
       <View style={styles.rowBetween}><Heading>Donaciones cerca de ti</Heading><Text style={styles.muted}>{filteredDonations.length} disponibles</Text></View>
       {filteredDonations.length ? <View style={styles.grid}>{filteredDonations.map(renderDonationCard)}</View> : <EmptyState text="No encontramos donaciones con esos filtros." action="Quitar filtros" onPress={() => { setSearch(''); setCategory('todas'); }} />}
@@ -807,7 +818,7 @@ export function RobinFoodApp() {
         <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopContent]}>
           {error ? <Pressable onPress={() => setError('')}><Text accessibilityRole="alert" style={styles.errorBanner}>{error}  ×</Text></Pressable> : null}
           {mainContent}
-          <View style={styles.footer}><Text style={styles.muted}>Robin Food · {roleName(currentUser.role)} · Demo local</Text><Pressable onPress={() => setPage('terms')}><Text style={styles.link}>Términos y privacidad</Text></Pressable></View>
+          <View style={styles.footer}><Text style={styles.muted}>Robin Food · {roleName(currentUser.role)} · {isDemoMode ? 'Datos locales' : 'Red compartida'}</Text><Pressable onPress={() => setPage('terms')}><Text style={styles.link}>Términos y privacidad</Text></Pressable></View>
         </ScrollView>
         {!isDesktop ? <View style={styles.bottomNav}>{nav.map((item) => <NavItem key={item.key} active={page === item.key} title={item.title} icon={item.icon} dark={dark} compact onPress={() => setPage(item.key)} />)}</View> : null}
       </View>

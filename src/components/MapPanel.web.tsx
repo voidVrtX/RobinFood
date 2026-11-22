@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { Map as LeafletMap } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { Donation } from '@/types/models';
+import type { Donation, MapLocation } from '@/types/models';
 import { TOLUCA, palette } from '@/theme/palette';
 import { potentialRecipients, possibleSurplusLocations } from '@/data/tolucaRoutes';
 
-export default function MapPanel({ donations = [] }: { donations?: Donation[] }) {
+export default function MapPanel({ donations = [], locations = [] }: { donations?: Donation[]; locations?: MapLocation[] }) {
   const mapElement = useRef<HTMLDivElement>(null);
   const [mapError, setMapError] = useState('');
 
@@ -43,13 +43,22 @@ export default function MapPanel({ donations = [] }: { donations?: Donation[] })
         coordinates.push([latitude, longitude]);
       };
 
-      possibleSurplusLocations.forEach((point) => {
-        addMarker(point.latitude, point.longitude, palette.goldDark, point.name, `Punto sugerido de recolección · ${point.address} · ${point.schedule}`);
-      });
-      potentialRecipients.forEach((point) => {
-        const phone = point.phone ? ` · Tel. ${point.phone}` : '';
-        addMarker(point.latitude, point.longitude, '#387A55', point.name, `Posible organización receptora · ${point.address} · ${point.schedule}${phone}`);
-      });
+      if (locations.length) {
+        locations.forEach((point) => {
+          const color = point.type === 'recoleccion' ? palette.goldDark : '#387A55';
+          const label = point.type === 'recoleccion' ? 'Punto de recolección' : 'Organización receptora';
+          const phone = point.phone ? ` · Tel. ${point.phone}` : '';
+          addMarker(point.latitude, point.longitude, color, point.name, `${label} · ${point.address} · ${point.schedule}${phone}`);
+        });
+      } else {
+        possibleSurplusLocations.forEach((point) => {
+          addMarker(point.latitude, point.longitude, palette.goldDark, point.name, `Punto sugerido de recolección · ${point.address} · ${point.schedule}`);
+        });
+        potentialRecipients.forEach((point) => {
+          const phone = point.phone ? ` · Tel. ${point.phone}` : '';
+          addMarker(point.latitude, point.longitude, '#387A55', point.name, `Posible organización receptora · ${point.address} · ${point.schedule}${phone}`);
+        });
+      }
       donations.forEach((donation) => {
         addMarker(donation.lat, donation.lng, '#B6291F', donation.title, `Publicación · ${donation.address}`);
       });
@@ -66,7 +75,7 @@ export default function MapPanel({ donations = [] }: { donations?: Donation[] })
       disposed = true;
       map?.remove();
     };
-  }, [donations]);
+  }, [donations, locations]);
 
   return (
     <View style={styles.container}>

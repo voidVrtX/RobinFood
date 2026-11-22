@@ -25,7 +25,7 @@ import { TERMS_VERSION } from '@/theme/palette';
 import { estimatedKg } from '@/utils/geo';
 import type {
   AccessRequest, AppNotification, AuditEntry, ChatMessage, Database, Donation,
-  Preferences, PublicUser, ReportAggregate, Reservation, Role, User,
+  Preferences, PublicUser, ReportAggregate, Reservation, Role, User, MapLocation,
 } from '@/types/models';
 import { getFirebaseClient } from './firebaseClient';
 
@@ -104,6 +104,15 @@ async function readCollection<T>(
   const source = constraints.length ? query(collection(db, name), ...constraints) : collection(db, name);
   const result = await getDocs(source);
   return result.docs.map((entry) => mapDocument<T>(entry.id, entry.data()));
+}
+
+export async function getMapLocations(): Promise<MapLocation[]> {
+  return readCollection<MapLocation>('locations', where('active', '==', true));
+}
+
+export async function upsertMapLocation(input: Omit<MapLocation, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<MapLocation> {
+  const result = await call<{ location: MapLocation }>('upsertLocation', { location: input });
+  return result.location;
 }
 
 async function readOwnReservations(uid: string): Promise<Reservation[]> {
