@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
 import { applicationDefault, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -21,6 +22,7 @@ const locations = [
 ];
 
 const accounts = [
+  { role: 'admin', name: 'Admin Robin Food', email: 'admin@robinfood.mx', locationId: null },
   { role: 'donador', name: 'Pastelerías Esperanza (Hidalgo)', email: 'donador@robinfood.mx', businessName: 'Pastelerías Esperanza (Hidalgo)', locationId: 'esperanza-hidalgo' },
   { role: 'receptor', name: 'Casa Hogar Alegría', email: 'receptor@robinfood.mx', organization: 'Casa Hogar Alegría', locationId: 'casa-hogar-alegria' },
   { role: 'donador', name: 'Pastelerías Esperanza (Rayón)', email: 'void@robinfood.mx', businessName: 'Pastelerías Esperanza (Rayón)', locationId: 'esperanza-rayon' },
@@ -37,6 +39,7 @@ for (const location of locations) {
 }
 
 const locationMap = new Map(locations.map((location) => [location.id, location]));
+const temporaryPasswords = [];
 for (const account of accounts) {
   let user;
   try {
@@ -76,7 +79,19 @@ for (const account of accounts) {
     ...(location ? { address: location.address, lat: location.latitude, lng: location.longitude } : {}),
   }, { merge: true });
 
-  console.log(`${account.name}: ${account.email}${temporaryPassword ? ` | contraseña temporal: ${temporaryPassword}` : ' | cuenta existente actualizada'}`);
+  if (temporaryPassword) temporaryPasswords.push({ name: account.name, email: account.email, password: temporaryPassword });
+  console.log(`${account.name}: ${account.email} | ${temporaryPassword ? 'contraseña temporal creada y guardada fuera del repositorio' : 'cuenta existente actualizada'}`);
 }
 
+if (temporaryPasswords.length) {
+  const output = temporaryPasswords
+    .map(({ name, email, password }) => `${name}\t${email}\t${password}`)
+    .join('\n');
+  await writeFile(
+    'C:/Users/HP/.copilot/session-state/c892ed42-b18d-4338-a167-141803de3275/files/firebase-temporary-passwords.txt',
+    `Nombre\tCorreo\tContraseña temporal\n${output}\n`,
+    'utf8',
+  );
+  console.log('Contraseñas temporales guardadas en la carpeta privada de esta sesión.');
+}
 console.log(`Importación completa: ${locations.length} ubicaciones y ${accounts.length} cuentas.`);
