@@ -1,0 +1,66 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function profile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function activeDonor() {
+      return signedIn()
+        && request.auth.token.role == 'donador'
+        && profile().role == 'donador'
+        && profile().status == 'activo';
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.role == 'admin'
+        && profile().role == 'admin'
+        && profile().status == 'activo';
+    }
+
+    function validImage() {
+      return request.resource.size > 0
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    match /staging/{userId}/{fileName} {
+      allow read, delete: if activeDonor() && request.auth.uid == userId;
+      allow create, update: if activeDonor()
+        && request.auth.uid == userId
+        && fileName.matches('[A-Za-z0-9._-]+')
+        && validImage();
+    }
+
+    match /donations/{donationId}/{fileName} {
+      function donation() {
+        return firestore.get(/databases/(default)/documents/donations/$(donationId)).data;
+      }
+
+      function isParticipant() {
+        return donation().reservationId is string
+          && firestore.exists(/databases/(default)/documents/reservations/$(donation().reservationId))
+          && (
+            firestore.get(/databases/(default)/documents/reservations/$(donation().reservationId)).data.receptorId == request.auth.uid
+            || firestore.get(/databases/(default)/documents/reservations/$(donation().reservationId)).data.donorId == request.auth.uid
+          );
+      }
+
+      allow read: if signedIn()
+        && (isAdmin()
+          || donation().donorId == request.auth.uid
+          || donation().status == 'disponible'
+          || isParticipant());
+      allow write: if false;
+    }
+
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

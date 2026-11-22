@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Robin Food",
+    "slug": "robin-food",
+    "version": "1.0.0",
+    "scheme": "robinfood",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router",
+      ["expo-location", { "locationWhenInUsePermission": "Robin Food usa tu ubicación para mostrar donaciones cercanas." }],
+      ["expo-image-picker", { "photosPermission": "Robin Food necesita acceso a tus fotos para publicar donaciones.", "cameraPermission": "Robin Food necesita acceso a la cámara para tomar fotos de alimentos." }]
+    ],
+    "experiments": { "typedRoutes": true },
+    "ios": { "bundleIdentifier": "mx.robinfood.app", "supportsTablet": true },
+    "android": { "package": "mx.robinfood.app", "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "CAMERA"] },
+    "web": { "bundler": "metro", "name": "Robin Food", "themeColor": "#D9AE5F", "output": "static" }
+  }
+}

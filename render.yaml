@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: robin-food
+    runtime: static
+    buildCommand: npm ci && npm run build:web
+    staticPublishPath: ./dist
+    envVars:
+      - key: EXPO_PUBLIC_DEMO_MODE
+        value: "false"
+      - key: EXPO_PUBLIC_FIREBASE_API_KEY
+        sync: false
+      - key: EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN
+        value: robinfood-fireb.firebaseapp.com
+      - key: EXPO_PUBLIC_FIREBASE_PROJECT_ID
+        value: robinfood-fireb
+      - key: EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET
+        value: robinfood-fireb.firebasestorage.app
+      - key: EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+        value: "103933308733"
+      - key: EXPO_PUBLIC_FIREBASE_APP_ID
+        value: 1:103933308733:web:1e65bbb2c6c44b5523df54
+      - key: EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID
+        value: G-N19ZRCH96J
+      - key: EXPO_PUBLIC_FIREBASE_FUNCTIONS_REGION
+        value: us-central1

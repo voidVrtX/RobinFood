@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function activeUser() {
+      return signedIn() && profile().status == 'activo';
+    }
+
+    function isAdmin() {
+      return activeUser()
+        && request.auth.token.role == 'admin'
+        && profile().role == 'admin';
+    }
+
+    function canReadReservation(reservationId) {
+      let reservationPath = /databases/$(database)/documents/reservations/$(reservationId);
+      return exists(reservationPath)
+        && (get(reservationPath).data.receptorId == request.auth.uid
+          || get(reservationPath).data.donorId == request.auth.uid);
+    }
+
+    match /users/{userId} {
+      allow get: if activeUser() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /donations/{donationId} {
+      allow get, list: if activeUser()
+        && (isAdmin()
+          || resource.data.donorId == request.auth.uid
+          || resource.data.status == 'disponible'
+          || (resource.data.reservationId is string && canReadReservation(resource.data.reservationId)));
+      allow create, update, delete: if false;
+    }
+
+    match /reservations/{reservationId} {
+      allow get, list: if activeUser()
+        && (isAdmin()
+          || resource.data.receptorId == request.auth.uid
+          || resource.data.donorId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+
+    match /reservationSecrets/{reservationId} {
+      allow get: if activeUser() && resource.data.receptorId == request.auth.uid;
+      allow list, create, update, delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow get, list: if activeUser()
+        && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+
+    match /messages/{messageId} {
+      allow get, list: if activeUser()
+        && (isAdmin()
+          || resource.data.conversationId == request.auth.uid
+          || resource.data.fromUserId == request.auth.uid
+          || resource.data.toUserId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+
+    match /accessRequests/{requestId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /auditLog/{entryId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /reports/{reportId} {
+      allow get, list: if activeUser();
+      allow create, update, delete: if false;
+    }
+
+    match /rateLimits/{rateLimitId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
