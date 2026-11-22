@@ -23,3 +23,7 @@ services:
         value: G-N19ZRCH96J
       - key: EXPO_PUBLIC_FIREBASE_FUNCTIONS_REGION
         value: us-central1
+      - key: EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID
+        value: 294699581896-q89023h7ln02rd70ai04etitscgr70tq.apps.googleusercontent.com
+      - key: EXPO_PUBLIC_GOOGLE_DRIVE_FOLDER_ID
+        value: 1KfdGtxix6gpkZTN0jKhBIASgrdEo4IZ7

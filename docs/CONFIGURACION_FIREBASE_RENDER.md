@@ -35,6 +35,15 @@ La API key no estaba disponible en el contexto de esta integración, por lo que 
 
 En Firebase Console habilita Email/Password y registra el dominio de Render como dominio autorizado antes de iniciar sesión o enviar recuperación de contraseña.
 
+## Google Drive para fotografías
+
+La subida desde el navegador usa OAuth público; no se utiliza el secreto de cliente. Configura estas variables:
+
+- `EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`: el Client ID web creado en Google Cloud.
+- `EXPO_PUBLIC_GOOGLE_DRIVE_FOLDER_ID`: `1KfdGtxix6gpkZTN0jKhBIASgrdEo4IZ7`.
+
+En Google Cloud habilita **Google Drive API**, agrega el alcance `drive.file` y registra como orígenes JavaScript autorizados el localhost usado por Expo y el dominio público de Render. El usuario debe ser Editor de la carpeta y autorizarla una sola vez desde el botón de Google Drive.
+
 ## 4. Rules, índices y Functions
 
 No se publicó ninguna configuración. Después de revisar el diff y confirmar explícitamente los recursos concretos a publicar, desde la raíz:

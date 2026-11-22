@@ -26,6 +26,13 @@ import {
 import { haversineKm } from '@/utils/geo';
 import { isDemoMode } from '@/services/firebase/mode';
 import { getGoogleDriveFileId, normalizeGoogleDriveImageUrl } from '@/utils/googleDrive';
+import {
+  connectGoogleDrive,
+  disconnectGoogleDrive,
+  getGoogleDriveFolderId,
+  isGoogleDriveConnected,
+  uploadImageToGoogleDrive,
+} from '@/services/googleDrive';
 import { possibleSurplusLocations } from '@/data/tolucaRoutes';
 
 function translatedChildren(children: React.ReactNode, language: 'es' | 'en'): React.ReactNode {
@@ -177,6 +184,7 @@ export function RobinFoodApp() {
   const [publishPhoto, setPublishPhoto] = useState(isDemoMode ? imageFallback : '');
   const [publishPhotos, setPublishPhotos] = useState<string[]>([]);
   const [publishDriveUrl, setPublishDriveUrl] = useState('');
+  const [googleDriveConnected, setGoogleDriveConnected] = useState(false);
   const [publishDuration, setPublishDuration] = useState<'15m' | '30m' | '1h' | '3h' | 'custom' | 'manual'>('3h');
   const [customDurationMinutes, setCustomDurationMinutes] = useState('60');
   const [deliveryCode, setDeliveryCode] = useState('');
@@ -325,12 +333,27 @@ export function RobinFoodApp() {
     }
   };
   const signOut = async () => { await logout(); setPage('login'); setError(''); };
-  const setSelectedPhoto = (asset: ImagePicker.ImagePickerAsset) => {
+  const setSelectedPhoto = async (asset: ImagePicker.ImagePickerAsset) => {
     if (!asset.mimeType?.startsWith('image/')) { setError('El archivo debe ser una imagen.'); return; }
     if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) { setError('La imagen debe pesar 5 MB o menos.'); return; }
     if (!publishPhotos.includes(asset.uri) && publishPhotos.length >= 4) { setError('Puedes adjuntar hasta cuatro fotos.'); return; }
-    setPublishPhotos((photos) => photos.includes(asset.uri) ? photos : [...photos, asset.uri]);
     setPublishPhoto(asset.uri);
+    if (Platform.OS === 'web') {
+      try {
+        setBusy(true);
+        const driveUrl = await uploadImageToGoogleDrive(asset.uri, `robinfood-${Date.now()}-${publishPhotos.length + 1}.${asset.mimeType === 'image/png' ? 'png' : asset.mimeType === 'image/webp' ? 'webp' : 'jpg'}`);
+        setPublishPhotos((photos) => photos.includes(driveUrl) ? photos : [...photos, driveUrl]);
+        setPublishPhoto(driveUrl);
+        setGoogleDriveConnected(true);
+        setPublishDriveUrl(driveUrl);
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'No se pudo subir la foto a Google Drive.');
+      } finally {
+        setBusy(false);
+      }
+    } else {
+      setPublishPhotos((photos) => photos.includes(asset.uri) ? photos : [...photos, asset.uri]);
+    }
   };
   const chooseImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -650,6 +673,17 @@ export function RobinFoodApp() {
     <View style={styles.row}>
       <Button secondary label="Elegir de galería" onPress={() => void chooseImage()} />
       <Button secondary label="Tomar foto" onPress={() => void chooseCameraImage()} />
+      {Platform.OS === 'web' ? (
+        <Button
+          secondary={!googleDriveConnected}
+          label={googleDriveConnected ? 'Google Drive conectado' : 'Conectar Google Drive'}
+          onPress={() => void run(async () => {
+            await connectGoogleDrive();
+            setGoogleDriveConnected(true);
+          }, 'Google Drive autorizado. Las fotos se subirán a la carpeta RobinFoodImages.')}
+        />
+      ) : null}
+      {googleDriveConnected ? <Button secondary label="Desconectar Drive" onPress={() => { disconnectGoogleDrive(); setGoogleDriveConnected(false); }} /> : null}
     </View>
     {publishPhoto
       ? <Image source={{ uri: publishPhoto }} style={styles.publishImage} />
