@@ -22,7 +22,6 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { TERMS_VERSION } from '@/theme/palette';
 import { estimatedKg } from '@/utils/geo';
 import type {
@@ -30,7 +29,7 @@ import type {
   Preferences, PublicUser, ReportAggregate, Reservation, Role, User, MapLocation,
 } from '@/types/models';
 import { getFirebaseClient } from './firebaseClient';
-import { normalizeGoogleDriveImageUrl } from '@/utils/googleDrive';
+import { uriToCompressedImageData } from '@/utils/imageData';
 
 type AccountInput = { role: Exclude<Role, 'admin'>; name: string; email: string; phone?: string };
 type NewDonationInput = Omit<Donation, 'id' | 'donorId' | 'status' | 'createdAt' | 'updatedAt' | 'reservedBy' | 'reservationId'>;
@@ -254,20 +253,12 @@ export async function cancelDonation(donationId: string, reason: string): Promis
 }
 
 async function uploadPhoto(uri: string, index: number, uid: string): Promise<string> {
-  if (/^https?:\/\//i.test(uri) || !uri) {
-    throw new Error('Selecciona una foto del dispositivo; las publicaciones reales no aceptan imágenes de muestra.');
-  }
-  const response = await fetch(uri);
-  if (!response.ok) throw new Error('No se pudo leer la foto seleccionada.');
-  const blob = await response.blob();
-  const contentType = blob.type.toLowerCase();
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(contentType)) {
-    throw new Error('Usa una imagen JPG, PNG o WebP.');
-  }
-  if (blob.size > 5 * 1024 * 1024) throw new Error('Cada foto debe pesar 5 MB o menos.');
-  const path = `staging/${uid}/${Crypto.randomUUID()}-${index}`;
-  await uploadBytes(ref(getFirebaseClient().storage, path), blob, { contentType });
-  return path;
+  void index;
+  void uid;
+  if (!uri) throw new Error('Selecciona una foto.');
+  if (/^data:image\//i.test(uri)) return uri;
+  if (/^https?:\/\//i.test(uri)) throw new Error('Las imágenes externas requieren una versión pública compatible.');
+  return uriToCompressedImageData(uri);
 }
 
 export async function publishDonation(input: NewDonationInput): Promise<Donation> {
@@ -279,14 +270,7 @@ export async function publishDonation(input: NewDonationInput): Promise<Donation
   const donationRef = doc(collection(getFirebaseClient().db, 'donations'));
   const photos: string[] = [];
   for (let index = 0; index < input.photos.length; index++) {
-    const driveUrl = normalizeGoogleDriveImageUrl(input.photos[index]);
-    if (driveUrl) {
-      photos.push(driveUrl);
-    } else if (/^https?:\/\//i.test(input.photos[index])) {
-      throw new Error('Usa un enlace público de Google Drive o selecciona una foto del dispositivo.');
-    } else {
-      photos.push(await uploadPhoto(input.photos[index], index, user.uid));
-    }
+    photos.push(await uploadPhoto(input.photos[index], index, user.uid));
   }
   const donation: Donation = {
     id: donationRef.id,
@@ -428,12 +412,8 @@ export async function exportCsv(kind: 'users' | 'donations' | 'reservations'): P
 }
 
 export async function resolvePhoto(path: string): Promise<string> {
-  if (/^https?:\/\//i.test(path)) {
-    const driveUrl = normalizeGoogleDriveImageUrl(path);
-    if (driveUrl) return driveUrl;
-    throw new Error('La foto no es un enlace público válido de Google Drive.');
-  }
-  return getDownloadURL(ref(getFirebaseClient().storage, path));
+  if (/^data:image\//i.test(path) || /^https?:\/\//i.test(path)) return path;
+  throw new Error('Formato de imagen no compatible.');
 }
 
 export function subscribeToSnapshot(

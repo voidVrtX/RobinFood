@@ -25,14 +25,7 @@ import {
 } from '@/services/foodService';
 import { haversineKm } from '@/utils/geo';
 import { isDemoMode } from '@/services/firebase/mode';
-import { getGoogleDriveFileId, normalizeGoogleDriveImageUrl } from '@/utils/googleDrive';
-import {
-  connectGoogleDrive,
-  disconnectGoogleDrive,
-  getGoogleDriveFolderId,
-  isGoogleDriveConnected,
-  uploadImageToGoogleDrive,
-} from '@/services/googleDrive';
+import { uriToCompressedImageData } from '@/utils/imageData';
 import { possibleSurplusLocations } from '@/data/tolucaRoutes';
 
 function translatedChildren(children: React.ReactNode, language: 'es' | 'en'): React.ReactNode {
@@ -183,8 +176,6 @@ export function RobinFoodApp() {
   const [publishPoint, setPublishPoint] = useState<(typeof possibleSurplusLocations)[number] | null>(null);
   const [publishPhoto, setPublishPhoto] = useState(isDemoMode ? imageFallback : '');
   const [publishPhotos, setPublishPhotos] = useState<string[]>([]);
-  const [publishDriveUrl, setPublishDriveUrl] = useState('');
-  const [googleDriveConnected, setGoogleDriveConnected] = useState(false);
   const [publishDuration, setPublishDuration] = useState<'15m' | '30m' | '1h' | '3h' | 'custom' | 'manual'>('3h');
   const [customDurationMinutes, setCustomDurationMinutes] = useState('60');
   const [deliveryCode, setDeliveryCode] = useState('');
@@ -338,21 +329,15 @@ export function RobinFoodApp() {
     if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) { setError('La imagen debe pesar 5 MB o menos.'); return; }
     if (!publishPhotos.includes(asset.uri) && publishPhotos.length >= 4) { setError('Puedes adjuntar hasta cuatro fotos.'); return; }
     setPublishPhoto(asset.uri);
-    if (Platform.OS === 'web') {
-      try {
-        setBusy(true);
-        const driveUrl = await uploadImageToGoogleDrive(asset.uri, `robinfood-${Date.now()}-${publishPhotos.length + 1}.${asset.mimeType === 'image/png' ? 'png' : asset.mimeType === 'image/webp' ? 'webp' : 'jpg'}`);
-        setPublishPhotos((photos) => photos.includes(driveUrl) ? photos : [...photos, driveUrl]);
-        setPublishPhoto(driveUrl);
-        setGoogleDriveConnected(true);
-        setPublishDriveUrl(driveUrl);
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'No se pudo subir la foto a Google Drive.');
-      } finally {
-        setBusy(false);
-      }
-    } else {
-      setPublishPhotos((photos) => photos.includes(asset.uri) ? photos : [...photos, asset.uri]);
+    try {
+      setBusy(true);
+      const imageData = await uriToCompressedImageData(asset.uri, asset.mimeType);
+      setPublishPhotos((photos) => photos.includes(imageData) ? photos : [...photos, imageData]);
+      setPublishPhoto(imageData);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'No se pudo preparar la imagen.');
+    } finally {
+      setBusy(false);
     }
   };
   const chooseImage = async () => {
@@ -376,10 +361,6 @@ export function RobinFoodApp() {
   };
   const doPublish = async () => {
     if (!currentUser) return;
-    if (publishDriveUrl.trim() && !getGoogleDriveFileId(publishDriveUrl)) {
-      setError('Pega el enlace directo del archivo de imagen de Google Drive, no el enlace de la carpeta.');
-      return;
-    }
     const durations: Record<Exclude<typeof publishDuration, 'custom' | 'manual'>, number> = {
       '15m': 15, '30m': 30, '1h': 60, '3h': 180,
     };
@@ -409,7 +390,6 @@ export function RobinFoodApp() {
       setPublishTitle('');
       setPublishPhotos([]);
       setPublishPhoto(isDemoMode ? imageFallback : '');
-      setPublishDriveUrl('');
       setPublishPoint(null);
       setPublishAddress(TOLUCA.address);
       published = true;
@@ -673,44 +653,11 @@ export function RobinFoodApp() {
     <View style={styles.row}>
       <Button secondary label="Elegir de galería" onPress={() => void chooseImage()} />
       <Button secondary label="Tomar foto" onPress={() => void chooseCameraImage()} />
-      {Platform.OS === 'web' ? (
-        <Button
-          secondary={!googleDriveConnected}
-          label={googleDriveConnected ? 'Google Drive conectado' : 'Conectar Google Drive'}
-          onPress={() => void run(async () => {
-            await connectGoogleDrive();
-            setGoogleDriveConnected(true);
-          }, 'Google Drive autorizado. Las fotos se subirán a la carpeta RobinFoodImages.')}
-        />
-      ) : null}
-      {googleDriveConnected ? <Button secondary label="Desconectar Drive" onPress={() => { disconnectGoogleDrive(); setGoogleDriveConnected(false); }} /> : null}
     </View>
     {publishPhoto
       ? <Image source={{ uri: publishPhoto }} style={styles.publishImage} />
       : <View style={[styles.publishImage, styles.imageFallback]}><Text style={styles.robin}>🐦</Text><Text>Selecciona una foto para tu publicación</Text></View>}
-    <Label>Enlace público de Google Drive</Label>
-    <TextField
-      autoCapitalize="none"
-      placeholder="https://drive.google.com/file/d/..."
-      value={publishDriveUrl}
-      onChangeText={(value) => {
-        setPublishDriveUrl(value);
-        if (!value.trim()) {
-          setPublishPhoto('');
-          setPublishPhotos([]);
-        } else if (getGoogleDriveFileId(value)) {
-          const normalized = normalizeGoogleDriveImageUrl(value);
-          setPublishPhoto(normalized ?? '');
-          setPublishPhotos(normalized ? [value.trim()] : []);
-        } else {
-          setPublishPhoto('');
-          setPublishPhotos([]);
-          setError('Pega el enlace del archivo de imagen, no el enlace de la carpeta.');
-        }
-      }}
-    />
-    <Button secondary label="Abrir carpeta de fotos en Drive" onPress={() => void Linking.openURL('https://drive.google.com/drive/folders/1KfdGtxix6gpkZTN0jKhBIASgrdEo4IZ7?usp=sharing').catch(() => setError('No se pudo abrir Google Drive.'))} />
-    <Text style={styles.muted}>Sube la foto a Google Drive, abre “Compartir” y activa “Cualquier persona con el enlace” como lector. Pegando el enlace no se requiere Firebase Storage.</Text>
+    <Text style={styles.muted}>La foto seleccionada se comprime y queda incluida en la publicación. No necesitas Google Drive ni Firebase Storage.</Text>
     <Label>Nombre del alimento</Label><TextField placeholder="Ej. Manzanas rojas" value={publishTitle} onChangeText={setPublishTitle} maxLength={60} />
     <Label>Categoría</Label><View style={styles.row}>{(['frutas', 'verduras', 'pan', 'otros'] as const).map((value) => <Button key={value} secondary label={publishCategory === value ? `✓ ${categoryLabels[value]}` : categoryLabels[value]} onPress={() => setPublishCategory(value)} />)}</View>
     <Label>Cantidad y unidad</Label><View style={styles.row}><TextField keyboardType="decimal-pad" value={publishQuantity} onChangeText={setPublishQuantity} style={styles.flexInput} />{(['kg', 'piezas', 'porciones', 'litros', 'cajas'] as const).map((unit) => <Pressable key={unit} onPress={() => setPublishUnit(unit)} style={[styles.filterChip, publishUnit === unit && styles.filterChipActive]}><Text>{unit}</Text></Pressable>)}</View>
