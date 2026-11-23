@@ -45,6 +45,8 @@ export default function MapPanel({ donations = [], locations = [], selectedDonat
         <Text style={styles.item}><Text style={styles.publication}>●</Text> Publicaciones</Text>
         <Text style={styles.item}><Text style={styles.pickup}>●</Text> Puntos de recolección</Text>
         <Text style={styles.item}><Text style={styles.recipient}>●</Text> Posibles receptores</Text>
+        {receptorLocation ? <Text style={styles.item}><Text style={styles.userLocation}>●</Text> Tu ubicación</Text> : null}
+        {selectedDonation ? <Text style={styles.item}><Text style={styles.donorLocation}>●</Text> Ubicación del donador</Text> : null}
       </View>
     </View>
   );
@@ -58,4 +60,6 @@ const styles = StyleSheet.create({
   publication: { color: '#B6291F' },
   pickup: { color: palette.goldDark },
   recipient: { color: '#387A55' },
+  userLocation: { color: '#EC6FA8' },
+  donorLocation: { color: '#2563EB' },
 });

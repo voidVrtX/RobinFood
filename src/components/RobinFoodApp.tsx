@@ -327,7 +327,7 @@ export function RobinFoodApp() {
   const setSelectedPhoto = async (asset: ImagePicker.ImagePickerAsset) => {
     if (!asset.mimeType?.startsWith('image/')) { setError('El archivo debe ser una imagen.'); return; }
     if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) { setError('La imagen debe pesar 5 MB o menos.'); return; }
-    if (!publishPhotos.includes(asset.uri) && publishPhotos.length >= 4) { setError('Puedes adjuntar hasta cuatro fotos.'); return; }
+    if (publishPhotos.length >= 1) { setError('Cada publicación puede incluir una foto.'); return; }
     setPublishPhoto(asset.uri);
     try {
       setBusy(true);
